@@ -1,0 +1,49 @@
+name: Weekly Notes
+
+on:
+  schedule:
+    # GitHub cron 用 UTC 时间；周日 16:00 UTC = 北京时间周一 00:00
+    - cron: "0 16 * * 0"
+  workflow_dispatch: {}   # 允许手动触发，方便测试
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-notes
+  cancel-in-progress: false
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      # 检出代码：优先用 PAT（个人令牌），未配置时退回 GITHUB_TOKEN
+      # 注意：用 GITHUB_TOKEN 推的提交可能不计入贡献绿块，想稳定显示绿块请配置 GH_PAT
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT || github.token }}
+
+      - name: Fix line endings
+        run: |
+          find . -name "*.sh" -not -path "./.git/*" -exec sed -i 's/\r$//' {} +
+
+      - name: Update weekly notes & README
+        run: bash scripts/update_readme.sh
+
+      - name: Commit and push
+        env:
+          # 想让绿块显示在你的账号上，请把邮箱改成你 GitHub 账号绑定的邮箱
+          GIT_NAME: xunna12379
+          GIT_EMAIL: xunna12379@users.noreply.github.com
+        run: |
+          git config user.name  "$GIT_NAME"
+          git config user.email "$GIT_EMAIL"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "没有变更，跳过提交"
+          else
+            git commit -m "docs: 每周笔记列表更新 $(date +%F)"
+            git push
+            echo "已提交并推送 ✔"
+          fi
